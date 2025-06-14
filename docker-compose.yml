@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 version: '3.8'
 
 services:
@@ -41,3 +42,48 @@ services:
 networks:
   default:
     name: ai-data-analyst-network
+=======
+version: '3.8'
+
+services:
+  ai-data-analyst:
+    build: .
+    ports:
+      - "8501:8501"
+    environment:
+      - TOGETHER_API_KEY=${TOGETHER_API_KEY}
+      - LM_STUDIO_URL=${LM_STUDIO_URL:-http://host.docker.internal:1234}
+    volumes:
+      - ./data:/app/data:ro  # Mount data directory as read-only
+      - ./logs:/app/logs     # Mount logs directory
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+
+  # Optional: LM Studio service (if running in Docker)
+  lm-studio:
+    image: lmstudio/lmstudio:latest
+    ports:
+      - "1234:1234"
+    volumes:
+      - ./models:/app/models
+    environment:
+      - MODEL_PATH=/app/models
+    profiles:
+      - lm-studio  # Use with: docker-compose --profile lm-studio up
+    restart: unless-stopped
+
+networks:
+  default:
+    name: ai-data-analyst-network
+>>>>>>> 0f3fe5ae72e1e543da9128827c74b2ea0a92d9d6

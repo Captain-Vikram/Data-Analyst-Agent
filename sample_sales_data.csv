@@ -1,0 +1,52 @@
+Date,Product,Category,Region,Sales_Amount,Quantity,Customer_Age,Customer_Gender,Customer_Satisfaction,Marketing_Channel,Discount_Applied
+2024-01-15,Laptop Pro,Electronics,North America,1299.99,1,34,Male,4.2,Online,0.05
+2024-01-16,Wireless Headphones,Electronics,Europe,199.99,2,28,Female,4.5,Social Media,0.10
+2024-01-17,Gaming Chair,Furniture,Asia,399.99,1,22,Male,4.1,Search Engine,0.15
+2024-01-18,Coffee Maker,Appliances,North America,89.99,1,45,Female,4.7,Email,0.00
+2024-01-19,Smartphone,Electronics,Europe,899.99,1,31,Male,4.3,Online,0.08
+2024-01-20,Running Shoes,Sports,Asia,149.99,1,26,Female,4.6,Influencer,0.20
+2024-01-21,Desk Lamp,Furniture,North America,79.99,2,38,Male,4.0,Retail Store,0.00
+2024-01-22,Yoga Mat,Sports,Europe,49.99,1,29,Female,4.8,Social Media,0.25
+2024-01-23,Tablet,Electronics,Asia,599.99,1,42,Male,4.4,Online,0.12
+2024-01-24,Blender,Appliances,North America,159.99,1,35,Female,4.2,Email,0.05
+2024-01-25,Gaming Mouse,Electronics,Europe,79.99,3,19,Male,4.7,Search Engine,0.30
+2024-01-26,Office Chair,Furniture,Asia,299.99,1,41,Female,4.3,Retail Store,0.00
+2024-01-27,Fitness Tracker,Sports,North America,249.99,1,33,Male,4.5,Influencer,0.15
+2024-01-28,Air Fryer,Appliances,Europe,179.99,1,47,Female,4.6,Online,0.10
+2024-01-29,Monitor,Electronics,Asia,399.99,2,25,Male,4.1,Social Media,0.20
+2024-01-30,Protein Powder,Sports,North America,59.99,2,30,Female,4.9,Email,0.00
+2024-02-01,Keyboard,Electronics,Europe,129.99,1,27,Male,4.4,Search Engine,0.12
+2024-02-02,Standing Desk,Furniture,Asia,699.99,1,39,Female,4.2,Online,0.08
+2024-02-03,Tennis Racket,Sports,North America,199.99,1,24,Male,4.3,Influencer,0.18
+2024-02-04,Microwave,Appliances,Europe,149.99,1,52,Female,4.5,Retail Store,0.00
+2024-02-05,Webcam,Electronics,Asia,99.99,1,23,Male,4.6,Social Media,0.22
+2024-02-06,Bean Bag,Furniture,North America,149.99,1,21,Female,4.0,Online,0.25
+2024-02-07,Basketball,Sports,Europe,29.99,2,32,Male,4.8,Email,0.00
+2024-02-08,Rice Cooker,Appliances,Asia,119.99,1,44,Female,4.4,Search Engine,0.10
+2024-02-09,Graphics Card,Electronics,North America,799.99,1,28,Male,4.7,Online,0.05
+2024-02-10,Dumbbells,Sports,Europe,99.99,1,36,Female,4.5,Influencer,0.15
+2024-02-11,Bookshelf,Furniture,Asia,199.99,1,43,Male,4.1,Retail Store,0.00
+2024-02-12,Juicer,Appliances,North America,129.99,1,37,Female,4.3,Social Media,0.12
+2024-02-13,SSD Drive,Electronics,Europe,159.99,2,26,Male,4.6,Search Engine,0.18
+2024-02-14,Yoga Block,Sports,Asia,19.99,4,31,Female,4.2,Email,0.30
+2024-02-15,LED Strips,Electronics,North America,39.99,3,29,Male,4.4,Online,0.20
+2024-02-16,Nightstand,Furniture,Europe,129.99,2,48,Female,4.0,Retail Store,0.00
+2024-02-17,Protein Bar,Sports,Asia,24.99,5,27,Male,4.7,Influencer,0.10
+2024-02-18,Toaster,Appliances,North America,79.99,1,41,Female,4.5,Email,0.08
+2024-02-19,Power Bank,Electronics,Europe,49.99,2,24,Male,4.3,Social Media,0.25
+2024-02-20,Meditation Cushion,Sports,Asia,69.99,1,35,Female,4.8,Search Engine,0.00
+2024-02-21,Wall Mount,Furniture,North America,59.99,1,40,Male,4.1,Online,0.15
+2024-02-22,Vacuum Cleaner,Appliances,Europe,299.99,1,46,Female,4.6,Retail Store,0.05
+2024-02-23,Router,Electronics,Asia,149.99,1,33,Male,4.4,Search Engine,0.12
+2024-02-24,Resistance Bands,Sports,North America,29.99,3,28,Female,4.7,Email,0.20
+2024-02-25,Cabinet,Furniture,Europe,399.99,1,50,Male,4.2,Online,0.00
+2024-02-26,Food Processor,Appliances,Asia,199.99,1,38,Female,4.5,Influencer,0.18
+2024-02-27,USB Hub,Electronics,North America,29.99,2,25,Male,4.3,Social Media,0.22
+2024-02-28,Foam Roller,Sports,Europe,39.99,1,34,Female,4.6,Search Engine,0.15
+2024-03-01,Ergonomic Mouse,Electronics,Asia,89.99,1,42,Male,4.8,Online,0.10
+2024-03-02,Wardrobe,Furniture,North America,899.99,1,45,Female,4.1,Retail Store,0.00
+2024-03-03,Jump Rope,Sports,Europe,19.99,2,23,Male,4.4,Email,0.25
+2024-03-04,Espresso Machine,Appliances,Asia,599.99,1,51,Female,4.7,Influencer,0.08
+2024-03-05,Mechanical Keyboard,Electronics,North America,179.99,1,30,Male,4.5,Social Media,0.12
+2024-03-06,Balance Ball,Sports,Europe,49.99,1,26,Female,4.2,Search Engine,0.30
+2024-03-07,TV Stand,Furniture,Asia,249.99,1,37,Male,4.3,Online,0.15
