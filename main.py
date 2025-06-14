@@ -28,9 +28,9 @@ warnings.filterwarnings('ignore')
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 # Import organized source code modules
-from core import DataAnalystAgent, AIBackend
-from visualization import VisualizationEngine
-from processors import FileProcessor
+from src.core import DataAnalystAgent, AIBackend
+from src.visualization import VisualizationEngine
+from src.processors import FileProcessor
 
 # UI libraries
 try:
@@ -50,194 +50,456 @@ except ImportError:
 
 
 def create_streamlit_app(agent: DataAnalystAgent):
-    """Create Streamlit interface"""
+    """Create an improved Streamlit interface with better organization"""
     st.set_page_config(
-        page_title="🤖 AI Data Analyst Agent",
+        page_title="🤖 Advanced AI Data Analyst Agent",
         page_icon="🤖",
-        layout="wide"
+        layout="wide",
+        initial_sidebar_state="expanded"
     )
     
-    st.title("🤖 Advanced AI Data Analyst Agent")
-    st.markdown("**Upload your data and get AI-powered insights!**")
+    # Header with better styling
+    st.markdown("""
+    <div style="text-align: center; padding: 1rem 0;">
+        <h1 style="color: #1f77b4; margin-bottom: 0;">🤖 Advanced AI Data Analyst Agent</h1>
+        <p style="font-size: 1.2em; color: #666; margin-top: 0.5rem;">
+            Upload your data and get AI-powered insights with professional analysis
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
     
-    # Sidebar for configuration
+    # Enhanced Sidebar Configuration
     with st.sidebar:
-        st.header("Configuration")
+        st.markdown("### ⚙️ Configuration")
         
-        # Backend selection
-        backend_type = st.selectbox(
-            "AI Backend",
+        # Backend Selection with better UI
+        st.markdown("#### 🔧 AI Backend")
+        backend_type = st.radio(
+            "Choose your AI backend:",
             ["local", "cloud"],
             index=0 if agent.backend_type == "local" else 1,
-            help="Local: LM Studio, Cloud: Together.ai"
+            help="Local: LM Studio (Free) | Cloud: Google Gemini AI (Requires API key)"
         )
         
-        # API Key input for cloud backend
+        # Backend-specific configuration
         api_key = None
         if backend_type == "cloud":
-            st.subheader("🔑 Cloud AI Configuration")
-            api_key = st.text_input(
-                "Together.ai API Key",
-                type="password",
-                value=os.getenv("TOGETHER_API_KEY", ""),
-                help="Enter your Together.ai API key. Get one at https://api.together.xyz/",
-                placeholder="Enter your API key here..."
-            )
-            
-            if not api_key:
-                st.warning("⚠️ Please enter your Together.ai API key to use cloud backend")
-                st.info("💡 You can also set the TOGETHER_API_KEY environment variable")
+            st.markdown("#### 🔑 Google AI Configuration")
+            with st.expander("Cloud AI Setup", expanded=True):
+                api_key = st.text_input(
+                    "Google AI API Key",
+                    type="password",
+                    value=os.getenv("GOOGLE_API_KEY", ""),
+                    help="Get your free API key at https://aistudio.google.com/app/apikey",
+                    placeholder="Enter your API key here..."
+                )
+                
+                if not api_key:
+                    st.warning("⚠️ API key required for cloud backend")
+                    st.info("💡 Set GOOGLE_API_KEY environment variable")
+                    st.markdown("[🔗 Get API Key](https://aistudio.google.com/app/apikey)")
         
-        # Update backend if changed
+        # Update backend configuration
         if backend_type != agent.backend_type or (backend_type == "cloud" and api_key):
             try:
                 agent.update_backend(backend_type, api_key)
                 if backend_type == "cloud" and api_key:
                     st.success("✅ Cloud backend configured!")
             except Exception as e:
-                st.error(f"❌ Failed to configure backend: {str(e)}")
-                # Fall back to local backend
+                st.error(f"❌ Backend error: {str(e)}")
                 agent.update_backend("local")
                 backend_type = "local"
         
-        # Connection status
+        # Connection Status with better visualization
+        st.markdown("#### 📡 Connection Status")
         if backend_type == "local":
             if hasattr(agent.ai_backend.client, 'check_connection') and agent.ai_backend.client.check_connection():
-                st.success("✅ LM Studio Connected")
+                st.success("🟢 LM Studio Connected")
             else:
-                st.error("❌ LM Studio Not Connected")
-                st.info("Please start LM Studio server first")
+                st.error("🔴 LM Studio Disconnected")
+                with st.expander("How to connect LM Studio"):
+                    st.markdown("""
+                    1. Download and install LM Studio
+                    2. Load a model (e.g., Llama 2, Mistral)
+                    3. Start the local server
+                    4. Ensure it's running on localhost:1234
+                    """)
         else:
             if api_key:
-                st.success("✅ Together.ai API Key Configured")
+                st.success("🟢 Google AI Connected")
             else:
-                st.error("❌ Together.ai API Key Missing")
+                st.error("🔴 Google AI Not Configured")
         
-        # Clear conversation
-        if st.button("🗑️ Clear Conversation"):
+        # Additional controls
+        st.markdown("---")
+        if st.button("🗑️ Clear Conversation", use_container_width=True):
             agent.ai_backend.clear_conversation_history()
             st.success("Conversation cleared!")
+        
+        # Help section
+        with st.expander("ℹ️ Help & Tips"):
+            st.markdown("""
+            **Supported File Types:**
+            - 📊 CSV, Excel (xlsx, xls)
+            - 📄 PDF, DOCX, TXT
+            - 🖼️ Images (PNG, JPG, JPEG)
+            
+            **Best Practices:**
+            - Use descriptive questions
+            - Mention specific columns/data points
+            - Ask for actionable insights
+            """)
     
-    # File upload
-    uploaded_file = st.file_uploader(
-        "Upload your data file",
-        type=['csv', 'xlsx', 'xls', 'pdf', 'docx', 'txt', 'png', 'jpg', 'jpeg'],
-        help="Supported formats: CSV, Excel, PDF, DOCX, TXT, Images"
-    )
+    # Main content area with tabs for better organization
+    tab1, tab2, tab3, tab4 = st.tabs(["📂 Data Upload", "📊 Analysis", "📈 Visualizations", "💬 AI Chat"])
     
-    if uploaded_file is not None:
-        # Save uploaded file temporarily
-        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{uploaded_file.name.split('.')[-1]}") as tmp_file:
-            tmp_file.write(uploaded_file.getvalue())
-            tmp_file_path = tmp_file.name
+    # Tab 1: Data Upload and Processing
+    with tab1:
+        st.markdown("### 📂 Upload and Process Your Data")
         
-        # Process file
-        with st.spinner("Processing file..."):
-            result = agent.process_file(tmp_file_path)
+        col1, col2 = st.columns([2, 1])
         
-        # Clean up temporary file
-        os.unlink(tmp_file_path)
+        with col1:
+            uploaded_file = st.file_uploader(
+                "Choose your data file",
+                type=['csv', 'xlsx', 'xls', 'pdf', 'docx', 'txt', 'png', 'jpg', 'jpeg'],
+                help="Drag and drop or click to browse",
+                key="file_uploader"
+            )
         
-        if 'error' in result:
-            st.error(f"Error: {result['error']}")
-            if 'message' in result:
-                st.info(result['message'])
+        with col2:
+            if uploaded_file:
+                st.markdown("**File Details:**")
+                st.info(f"📄 **Name:** {uploaded_file.name}")
+                st.info(f"📊 **Size:** {uploaded_file.size:,} bytes")
+                st.info(f"🔖 **Type:** {uploaded_file.type}")
+        
+        # Process uploaded file
+        if uploaded_file is not None:
+            process_uploaded_file(agent, uploaded_file)
+    
+    # Tab 2: Data Analysis Overview
+    with tab2:
+        if agent.current_data is not None or agent.current_file_info:
+            show_data_analysis(agent)
         else:
-            st.success("✅ File processed successfully!")
-            
-            # Display file info
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.subheader("📊 File Information")
-                if 'info' in result:
-                    for key, value in result['info'].items():
-                        if isinstance(value, (int, float, str)):
-                            st.metric(key.replace('_', ' ').title(), value)
-            
-            with col2:
-                st.subheader("📈 Quick Stats")
-                if 'data' in result and not result['data'].empty:
-                    df = result['data']
-                    st.metric("Rows", len(df))
-                    st.metric("Columns", len(df.columns))
-                    st.metric("Memory Usage", f"{df.memory_usage(deep=True).sum() / 1024:.1f} KB")
-            
-            # Show data preview
-            if 'data' in result and not result['data'].empty:
-                st.subheader("🔍 Data Preview")
-                st.dataframe(result['data'].head(10), use_container_width=True)
-                
-                # Basic visualizations
-                st.subheader("📊 Quick Visualizations")
-                numeric_columns = result['data'].select_dtypes(include=[np.number]).columns
-                
-                if len(numeric_columns) > 0:
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        if len(numeric_columns) >= 2:
-                            fig = px.scatter(result['data'], x=numeric_columns[0], y=numeric_columns[1])
-                            st.plotly_chart(fig, use_container_width=True)
-                    
-                    with col2:
-                        fig = px.histogram(result['data'], x=numeric_columns[0])
-                        st.plotly_chart(fig, use_container_width=True)
-                
-                # Advanced Visualizations
-                st.subheader("📈 Advanced Visualizations")
-                viz_engine = VisualizationEngine(agent)
-                
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    if st.button("📊 Summary Dashboard", key="summary_dashboard"):
-                        with st.spinner("Creating summary dashboard..."):
-                            fig = viz_engine.create_summary_dashboard()
-                            if fig:
-                                st.pyplot(fig)
-                            else:
-                                st.info("No data available for summary dashboard")
-                
-                with col2:
-                    if st.button("🔗 Correlation Matrix", key="correlation_matrix"):
-                        with st.spinner("Creating correlation matrix..."):
-                            fig = viz_engine.create_correlation_matrix()
-                            if fig:
-                                st.pyplot(fig)
-                            else:
-                                st.info("No numeric data available for correlation analysis")
-            
-            # Text content preview
-            elif 'text' in result:
-                st.subheader("📄 Content Preview")
-                st.text_area("Document Content", result['text'][:1000] + "...", height=200, disabled=True)
+            st.info("👆 Please upload a file in the 'Data Upload' tab to see analysis")
     
-    # Q&A Section
-    st.subheader("💬 Ask Questions About Your Data")
+    # Tab 3: Advanced Visualizations
+    with tab3:
+        if agent.current_data is not None:
+            show_visualizations(agent)
+        else:
+            st.info("👆 Please upload data to create visualizations")    # Tab 4: AI Chat Interface
+    with tab4:
+        show_ai_chat_interface(agent)
+
+
+def process_uploaded_file(agent: DataAnalystAgent, uploaded_file):
+    """Process and display uploaded file information"""
+    # Save uploaded file temporarily
+    with tempfile.NamedTemporaryFile(delete=False, suffix=f".{uploaded_file.name.split('.')[-1]}") as tmp_file:
+        tmp_file.write(uploaded_file.getvalue())
+        tmp_file_path = tmp_file.name
     
-    # Display conversation history
+    # Process file
+    with st.spinner("🔄 Processing file..."):
+        result = agent.process_file(tmp_file_path)
+    
+    # Clean up temporary file
+    os.unlink(tmp_file_path)
+    
+    if 'error' in result:
+        st.error(f"❌ Error: {result['error']}")
+        if 'message' in result:
+            st.info(result['message'])
+    else:
+        st.success("✅ File processed successfully!")
+        
+        # Store processed data info for other tabs
+        st.session_state['file_processed'] = True
+        st.session_state['file_result'] = result
+
+
+def show_data_analysis(agent: DataAnalystAgent):
+    """Display comprehensive data analysis"""
+    st.markdown("### 📊 Data Analysis Overview")
+    
+    if 'file_result' not in st.session_state:
+        st.warning("Please upload and process a file first")
+        return
+    
+    result = st.session_state['file_result']
+    
+    # File Information Section
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("#### 📄 File Info")
+        if 'info' in result:
+            for key, value in result['info'].items():
+                if isinstance(value, (int, float, str)):
+                    st.metric(key.replace('_', ' ').title(), value)
+    
+    with col2:
+        st.markdown("#### 📈 Data Stats")
+        if 'data' in result and not result['data'].empty:
+            df = result['data']
+            st.metric("Total Rows", f"{len(df):,}")
+            st.metric("Total Columns", len(df.columns))
+            st.metric("Memory Usage", f"{df.memory_usage(deep=True).sum() / 1024:.1f} KB")
+    
+    with col3:
+        st.markdown("#### 🔍 Data Quality")
+        if 'data' in result and not result['data'].empty:
+            df = result['data']
+            missing_data = df.isnull().sum().sum()
+            st.metric("Missing Values", missing_data)
+            st.metric("Complete Rows", f"{len(df.dropna()):,}")
+            st.metric("Data Types", len(df.dtypes.unique()))
+    
+    # Data Preview Section
+    if 'data' in result and not result['data'].empty:
+        st.markdown("#### 🔍 Data Preview")
+        
+        # Show sample data
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.dataframe(result['data'].head(10), use_container_width=True)
+        
+        with col2:
+            st.markdown("**Column Info:**")
+            for col in result['data'].columns[:10]:  # Show first 10 columns
+                dtype = str(result['data'][col].dtype)
+                st.write(f"**{col}:** {dtype}")
+        
+        # Data Summary Statistics
+        st.markdown("#### 📊 Summary Statistics")
+        numeric_cols = result['data'].select_dtypes(include=[np.number]).columns
+        
+        if len(numeric_cols) > 0:
+            st.dataframe(result['data'][numeric_cols].describe(), use_container_width=True)
+        else:
+            st.info("No numeric columns found for statistical summary")
+    
+    # Text content preview for non-tabular data
+    elif 'text' in result:
+        st.markdown("#### 📄 Content Preview")
+        content_preview = result['text'][:2000] + "..." if len(result['text']) > 2000 else result['text']
+        st.text_area("Document Content", content_preview, height=300, disabled=True)
+        
+        # Basic text statistics
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Characters", len(result['text']))
+        with col2:
+            st.metric("Words", len(result['text'].split()))
+        with col3:
+            st.metric("Lines", result['text'].count('\n') + 1)
+
+
+def show_visualizations(agent: DataAnalystAgent):
+    """Display advanced visualizations"""
+    st.markdown("### 📈 Advanced Visualizations")
+    
+    if 'file_result' not in st.session_state:
+        st.warning("Please upload and process a file first")
+        return
+    
+    result = st.session_state['file_result']
+    
+    if 'data' not in result or result['data'].empty:
+        st.warning("No data available for visualization")
+        return
+    
+    df = result['data']
+    numeric_columns = df.select_dtypes(include=[np.number]).columns
+    
+    if len(numeric_columns) == 0:
+        st.warning("No numeric columns found for visualization")
+        return
+    
+    # Quick Visualizations Section
+    st.markdown("#### 🚀 Quick Visualizations")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("**Distribution Plot**")
+        if len(numeric_columns) > 0:
+            selected_col = st.selectbox("Select column for distribution:", numeric_columns, key="dist_col")
+            fig = px.histogram(df, x=selected_col, title=f"Distribution of {selected_col}")
+            st.plotly_chart(fig, use_container_width=True)
+    
+    with col2:
+        st.markdown("**Correlation Heatmap**")
+        if len(numeric_columns) >= 2:
+            if st.button("Generate Correlation Matrix", key="corr_matrix"):
+                with st.spinner("Creating correlation matrix..."):
+                    corr_matrix = df[numeric_columns].corr()
+                    fig = px.imshow(corr_matrix, text_auto=True, aspect="auto",
+                                  title="Correlation Matrix")
+                    st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Need at least 2 numeric columns for correlation analysis")
+    
+    # Advanced Visualizations Section
+    st.markdown("#### 🎯 Advanced Analysis")
+    
+    viz_col1, viz_col2 = st.columns(2)
+    
+    with viz_col1:
+        if st.button("📊 Create Summary Dashboard", key="summary_dashboard"):
+            with st.spinner("Creating comprehensive dashboard..."):
+                try:
+                    viz_engine = VisualizationEngine(agent)
+                    fig = viz_engine.create_summary_dashboard()
+                    if fig:
+                        st.pyplot(fig)
+                    else:
+                        st.info("Unable to create summary dashboard with current data")
+                except Exception as e:
+                    st.error(f"Error creating dashboard: {str(e)}")
+    
+    with viz_col2:
+        if st.button("🔗 Advanced Correlation Analysis", key="advanced_corr"):
+            with st.spinner("Creating advanced correlation analysis..."):
+                try:
+                    viz_engine = VisualizationEngine(agent)
+                    fig = viz_engine.create_correlation_matrix()
+                    if fig:
+                        st.pyplot(fig)
+                    else:
+                        st.info("Unable to create correlation analysis")
+                except Exception as e:
+                    st.error(f"Error creating correlation analysis: {str(e)}")
+    
+    # Interactive Scatter Plot
+    if len(numeric_columns) >= 2:
+        st.markdown("#### 🎲 Interactive Scatter Plot")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            x_col = st.selectbox("X-axis:", numeric_columns, key="scatter_x")
+        with col2:
+            y_col = st.selectbox("Y-axis:", numeric_columns, index=1, key="scatter_y")
+        with col3:
+            color_col = st.selectbox("Color by:", ['None'] + list(df.columns), key="scatter_color")
+        
+        color_var = None if color_col == 'None' else color_col
+        fig = px.scatter(df, x=x_col, y=y_col, color=color_var, 
+                        title=f"{x_col} vs {y_col}")
+        st.plotly_chart(fig, use_container_width=True)
+
+
+def show_ai_chat_interface(agent: DataAnalystAgent):
+    """Display AI chat interface"""
+    st.markdown("### 💬 AI-Powered Data Analysis Chat")
+    
+    # Check if data is available
+    if agent.current_data is None and not agent.current_file_info:
+        st.warning("⚠️ Please upload a file first to enable AI analysis")
+        st.info("👆 Go to the 'Data Upload' tab to upload your data")
+        return
+    
+    # Display conversation history in a nicer format
     if agent.ai_backend.conversation_history:
-        st.subheader("🗨️ Conversation History")
-        for entry in agent.ai_backend.conversation_history:
-            if entry['role'] == 'user':
-                st.write(f"**You:** {entry['content']}")
-            elif entry['role'] == 'assistant':
-                st.write(f"**AI:** {entry['content']}")
-            st.write("---")
+        st.markdown("#### 🗨️ Conversation History")
+          # Create a container for scrollable chat history
+        chat_container = st.container()
+        with chat_container:
+            for i, entry in enumerate(agent.ai_backend.conversation_history):
+                if entry['role'] == 'user':
+                    st.markdown(f"""
+                    <div style="background-color: #f0f8ff; color: #2c3e50; padding: 10px; border-radius: 10px; margin: 5px 0; border-left: 3px solid #3498db;">
+                        <strong>👤 You:</strong> {entry['content']}
+                    </div>
+                    """, unsafe_allow_html=True)
+                elif entry['role'] == 'assistant':
+                    st.markdown(f"""
+                    <div style="background-color: #f8f8f8; color: #2c3e50; padding: 10px; border-radius: 10px; margin: 5px 0; border-left: 3px solid #27ae60;">
+                        <strong>🤖 AI Assistant:</strong> {entry['content']}
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                if i < len(agent.ai_backend.conversation_history) - 1:
+                    st.markdown("---")
+    
+    # Question input section
+    st.markdown("#### ❓ Ask Your Question")
+    
+    # Provide example questions
+    with st.expander("💡 Example Questions"):
+        example_questions = [
+            "What are the key patterns in this data?",
+            "Can you identify any outliers or anomalies?",
+            "What insights can you provide about the trends?",
+            "What are the main correlations in the data?",
+            "Can you summarize the most important findings?",
+            "What actionable recommendations do you have?",
+            "Are there any data quality issues I should be aware of?"
+        ]
+        
+        for i, example in enumerate(example_questions):
+            if st.button(f"📋 {example}", key=f"example_{i}"):
+                st.session_state['question_input'] = example
     
     # Question input
-    question = st.text_input("Ask a question about your data:", placeholder="What insights can you provide about this data?")
+    question = st.text_area(
+        "Enter your question about the data:",
+        placeholder="What insights can you provide about this data?",
+        height=100,
+        value=st.session_state.get('question_input', ''),
+        key="main_question_input"
+    )
     
-    if st.button("🔍 Analyze") and question:
+    # Analyze button with better styling
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        analyze_button = st.button(
+            "🔍 Analyze with AI",
+            use_container_width=True,
+            type="primary"
+        )
+    
+    if analyze_button and question.strip():
         if agent.current_data is not None or agent.current_file_info:
-            with st.spinner("Analyzing..."):
-                context = agent.get_data_context()
-                response = agent.ai_backend.answer_question(question, context)
-                st.write(f"**AI Response:**")
-                st.write(response)
+            with st.spinner("🤖 AI is analyzing your data..."):
+                try:
+                    context = agent.get_data_context()
+                    response = agent.ai_backend.answer_question(question, context)
+                      # Display the response in a nice format
+                    st.markdown("#### 🎯 AI Analysis Result")
+                    st.markdown(f"""
+                    <div style="background-color: #f8f8f8; color: #333333; padding: 15px; border-radius: 10px; border-left: 4px solid #1f77b4; font-size: 14px; line-height: 1.6;">
+                        {response}
+                    """, unsafe_allow_html=True)
+                    
+                    # Clear the question input
+                    st.session_state['question_input'] = ''
+                    
+                except Exception as e:
+                    st.error(f"❌ Error during analysis: {str(e)}")
         else:
             st.warning("Please upload a file first!")
+    elif analyze_button and not question.strip():
+        st.warning("Please enter a question before analyzing!")
+    
+    # Quick action buttons
+    st.markdown("#### ⚡ Quick Actions")
+    quick_col1, quick_col2, quick_col3 = st.columns(3)
+    
+    with quick_col1:
+        if st.button("📊 Data Summary", use_container_width=True):
+            st.session_state['question_input'] = "Can you provide a comprehensive summary of this data including key statistics, patterns, and insights?"
+    
+    with quick_col2:
+        if st.button("🔍 Find Insights", use_container_width=True):
+            st.session_state['question_input'] = "What are the most important insights and patterns you can identify in this data?"
+    
+    with quick_col3:
+        if st.button("💡 Recommendations", use_container_width=True):
+            st.session_state['question_input'] = "Based on this data analysis, what actionable recommendations do you have?"
 
 
 def main():
@@ -296,11 +558,10 @@ def main():
         def process_and_answer(file, question, backend_choice, api_key=""):
             if file is None:
                 return "Please upload a file first!"
-            
-            # Update backend if needed
-            if backend_choice == "Cloud (Together.ai)":
+              # Update backend if needed
+            if backend_choice == "Cloud (Google Gemini)":
                 if not api_key.strip():
-                    return "❌ Please provide your Together.ai API key for cloud backend"
+                    return "❌ Please provide your Google AI API key for cloud backend"
                 try:
                     agent.update_backend("cloud", api_key.strip())
                 except Exception as e:
@@ -319,17 +580,16 @@ def main():
         # Create inputs
         inputs = [
             gr.File(label="Upload Data File"),
-            gr.Textbox(label="Ask a Question", placeholder="What insights can you provide?"),
-            gr.Dropdown(
-                choices=["Local (LM Studio)", "Cloud (Together.ai)"],
+            gr.Textbox(label="Ask a Question", placeholder="What insights can you provide?"),            gr.Dropdown(
+                choices=["Local (LM Studio)", "Cloud (Google Gemini)"],
                 value="Local (LM Studio)",
                 label="AI Backend"
             ),
             gr.Textbox(
-                label="Together.ai API Key (for cloud backend)",
+                label="Google AI API Key (for cloud backend)",
                 type="password",
                 placeholder="Enter API key here (only needed for cloud backend)",
-                value=os.getenv("TOGETHER_API_KEY", "")
+                value=os.getenv("GOOGLE_API_KEY", "")
             )
         ]
         
@@ -338,7 +598,7 @@ def main():
             inputs=inputs,
             outputs=gr.Textbox(label="AI Response"),
             title="🤖 AI Data Analyst Agent",
-            description="Upload your data and get AI-powered insights! Choose between local LM Studio or cloud Together.ai backend."
+            description="Upload your data and get AI-powered insights! Choose between local LM Studio or cloud Google Gemini backend."
         )
         
         interface.launch(server_port=args.port)

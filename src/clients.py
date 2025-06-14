@@ -2,15 +2,25 @@
 AI client implementations for the Data Analyst Agent.
 
 This module contains client classes for interacting with different AI backends
-including local LM Studio and cloud-based services like Together.ai.
+including local LM Studio and cloud-based services like Google Gemini AI.
 """
 
-import requests
-import json
 import os
 from typing import Dict, Any, Optional
 import warnings
 warnings.filterwarnings('ignore')
+
+# Import for local LM Studio
+import requests
+import json
+
+# Import for Google Gemini AI
+try:
+    from google import genai
+    GENAI_AVAILABLE = True
+except ImportError:
+    GENAI_AVAILABLE = False
+    genai = None
 
 
 class LocalLMStudioClient:
@@ -133,69 +143,71 @@ Provide a helpful and insightful response."""
 
 class CloudAIClient:
     """
-    Client for cloud AI services (Together.ai).
+    Client for Google Gemini AI using the official Google GenAI SDK.
     
-    This class provides methods to interact with cloud-based AI services
+    This class provides methods to interact with Google Gemini AI
     for data analysis and question answering.
     """
     
     def __init__(self, api_key: str = None):
         """
-        Initialize the cloud AI client.
+        Initialize the Google Gemini AI client.
         
         Args:
-            api_key: API key for the cloud service
+            api_key: Google AI API key
         """
-        self.api_key = api_key or os.getenv("TOGETHER_API_KEY")
-        if not self.api_key:
-            raise ValueError("API key is required for cloud AI services")
+        if not GENAI_AVAILABLE:
+            raise ImportError("google-genai package not installed. Install with: pip install google-genai")
         
-        self.base_url = "https://api.together.xyz/v1"
-        self.headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
+        self.api_key = api_key or os.getenv("GOOGLE_API_KEY")
+        if not self.api_key:
+            raise ValueError("Google AI API key is required for cloud AI services")
+        
+        # Initialize the Google GenAI client
+        self.client = genai.Client(api_key=self.api_key)
+        self.model_name = "gemini-2.0-flash"  # Use the latest model
     
     def check_connection(self) -> bool:
         """
-        Check if the cloud service is available.
+        Check if Google Gemini AI service is available.
         
         Returns:
             True if service is available, False otherwise
         """
         try:
-            response = requests.get(
-                f"{self.base_url}/models",
-                headers=self.headers,
-                timeout=10
+            # Try to make a simple request to test the connection
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents="Hello"
             )
-            return response.status_code == 200
+            return True
         except Exception:
             return False
     
     def get_models(self) -> Dict[str, Any]:
         """
-        Get available models from the cloud service.
+        Get available models from Google Gemini AI service.
         
         Returns:
             Dictionary containing model information
         """
         try:
-            response = requests.get(
-                f"{self.base_url}/models",
-                headers=self.headers,
-                timeout=10
-            )
-            if response.status_code == 200:
-                return response.json()
-            else:
-                return {"error": f"HTTP {response.status_code}"}
+            # For now, return the model we're using
+            return {
+                "models": [
+                    {
+                        "name": self.model_name,
+                        "display_name": "Gemini 2.0 Flash",
+                        "description": "Google's fast and efficient AI model"
+                    }
+                ]
+            }
         except Exception as e:
             return {"error": str(e)}
     
     def answer_question(self, question: str, context: str = "") -> str:
         """
-        Generate an answer using the cloud AI service.
+        Generate an answer using Google Gemini AI service.
         
         Args:
             question: The question to answer
@@ -229,34 +241,22 @@ Response:"""
 
 Provide a helpful and insightful response."""
             
-            # Prepare the request
-            data = {
-                "model": "meta-llama/Llama-2-70b-chat-hf",
-                "messages": [
-                    {"role": "user", "content": prompt}
-                ],
-                "temperature": 0.7,
-                "max_tokens": 1000,
-                "stream": False
-            }
-            
-            # Make the request
-            response = requests.post(
-                f"{self.base_url}/chat/completions",
-                headers=self.headers,
-                json=data,
-                timeout=60
+            # Make the request using the new Google GenAI SDK
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=prompt
             )
             
-            if response.status_code == 200:
-                result = response.json()
-                return result['choices'][0]['message']['content']
-            else:
-                return f"Error: HTTP {response.status_code} - {response.text}"
+            return response.text
                 
-        except requests.exceptions.ConnectionError:
-            return "Error: Cannot connect to cloud AI service. Please check your internet connection."
-        except requests.exceptions.Timeout:
-            return "Error: Request timed out. Please try again."
         except Exception as e:
-            return f"Error generating response: {str(e)}"
+            # Handle various types of errors
+            error_message = str(e)
+            if "API_KEY" in error_message.upper():
+                return "Error: Invalid or missing Google AI API key. Please check your API key."
+            elif "QUOTA" in error_message.upper():
+                return "Error: API quota exceeded. Please check your Google AI Studio quota."
+            elif "SAFETY" in error_message.upper():
+                return "Error: Content was blocked by safety filters. Please try rephrasing your question."
+            else:
+                return f"Error generating response: {error_message}"
