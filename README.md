@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # 🤖 AI Data Analyst Agent
 
 A powerful AI-powered data analysis application that supports multiple file formats, provides intelligent insights, and offers both local and cloud-based AI integration.
