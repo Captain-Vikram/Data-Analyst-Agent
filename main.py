@@ -72,63 +72,103 @@ def create_streamlit_app(agent: DataAnalystAgent):
     with st.sidebar:
         st.markdown("### ⚙️ Configuration")
         
-        # Backend Selection with better UI
+        # Backend Selection with better UI (Cloud only for deployment)
         st.markdown("#### 🔧 AI Backend")
-        backend_type = st.radio(
-            "Choose your AI backend:",
-            ["local", "cloud"],
-            index=0 if agent.backend_type == "local" else 1,
-            help="Local: LM Studio (Free) | Cloud: Google Gemini AI (Requires API key)"
-        )
+        # Comment out local backend for Streamlit deployment
+        # backend_type = st.radio(
+        #     "Choose your AI backend:",
+        #     ["local", "cloud"],
+        #     index=0 if agent.backend_type == "local" else 1,
+        #     help="Local: LM Studio (Free) | Cloud: Google Gemini AI (Requires API key)"
+        # )
+        
+        # Force cloud backend for Streamlit deployment
+        backend_type = "cloud"
+        st.info("🌐 Using Google Gemini AI (Cloud Backend)")
         
         # Backend-specific configuration
         api_key = None
-        if backend_type == "cloud":
-            st.markdown("#### 🔑 Google AI Configuration")
-            with st.expander("Cloud AI Setup", expanded=True):
-                api_key = st.text_input(
-                    "Google AI API Key",
-                    type="password",
-                    value=os.getenv("GOOGLE_API_KEY", ""),
-                    help="Get your free API key at https://aistudio.google.com/app/apikey",
-                    placeholder="Enter your API key here..."
+        st.markdown("#### 🔑 Google AI Configuration")
+        with st.expander("Google AI Setup", expanded=True):
+            api_key = st.text_input(
+                "Google AI API Key",
+                type="password",
+                value=os.getenv("GOOGLE_API_KEY", ""),
+                help="Get your free API key at https://aistudio.google.com/app/apikey",
+                placeholder="Enter your API key here..."
+            )
+            
+            # Model selection dropdown
+            if api_key:
+                st.markdown("#### 🤖 Select AI Model")
+                available_models = {
+                    "gemini-2.0-flash-exp": "Gemini 2.0 Flash (Experimental) - Latest & Fastest",
+                    "gemini-2.0-flash": "Gemini 2.0 Flash - Fast & Efficient",
+                    "gemini-1.5-pro": "Gemini 1.5 Pro - Most Capable",
+                    "gemini-1.5-flash": "Gemini 1.5 Flash - Fast & Cost-Effective",
+                    "gemini-1.0-pro": "Gemini 1.0 Pro - Balanced Performance"
+                }
+                
+                selected_model = st.selectbox(
+                    "Choose AI Model:",
+                    options=list(available_models.keys()),
+                    format_func=lambda x: available_models[x],
+                    index=0,  # Default to latest model
+                    help="Different models offer various capabilities and response speeds"
                 )
                 
-                if not api_key:
-                    st.warning("⚠️ API key required for cloud backend")
-                    st.info("💡 Set GOOGLE_API_KEY environment variable")
-                    st.markdown("[🔗 Get API Key](https://aistudio.google.com/app/apikey)")
+                # Store selected model in session state
+                st.session_state['selected_model'] = selected_model
+                
+                # Show model info
+                model_info = {
+                    "gemini-2.0-flash-exp": "🚀 Experimental model with cutting-edge capabilities",
+                    "gemini-2.0-flash": "⚡ Optimized for speed and efficiency",
+                    "gemini-1.5-pro": "🎯 Best for complex analysis and reasoning",
+                    "gemini-1.5-flash": "💨 Fast responses with good quality",
+                    "gemini-1.0-pro": "🏛️ Stable and reliable performance"
+                }
+                
+                st.info(model_info[selected_model])
+            
+            if not api_key:
+                st.warning("⚠️ API key required for AI analysis")
+                st.info("💡 Set GOOGLE_API_KEY environment variable")
+                st.markdown("[🔗 Get API Key](https://aistudio.google.com/app/apikey)")
         
         # Update backend configuration
+        selected_model = st.session_state.get('selected_model', 'gemini-2.0-flash-exp')
         if backend_type != agent.backend_type or (backend_type == "cloud" and api_key):
             try:
-                agent.update_backend(backend_type, api_key)
+                agent.update_backend(backend_type, api_key, model_name=selected_model)
                 if backend_type == "cloud" and api_key:
-                    st.success("✅ Cloud backend configured!")
+                    st.success("✅ Google AI backend configured!")
             except Exception as e:
                 st.error(f"❌ Backend error: {str(e)}")
-                agent.update_backend("local")
-                backend_type = "local"
+                # Fallback to cloud backend for deployment
+                st.warning("Falling back to default cloud configuration...")
         
-        # Connection Status with better visualization
+        # Connection Status with better visualization (Cloud only)
         st.markdown("#### 📡 Connection Status")
-        if backend_type == "local":
-            if hasattr(agent.ai_backend.client, 'check_connection') and agent.ai_backend.client.check_connection():
-                st.success("🟢 LM Studio Connected")
-            else:
-                st.error("🔴 LM Studio Disconnected")
-                with st.expander("How to connect LM Studio"):
-                    st.markdown("""
-                    1. Download and install LM Studio
-                    2. Load a model (e.g., Llama 2, Mistral)
-                    3. Start the local server
-                    4. Ensure it's running on localhost:1234
-                    """)
+        # Comment out local backend status for deployment
+        # if backend_type == "local":
+        #     if hasattr(agent.ai_backend.client, 'check_connection') and agent.ai_backend.client.check_connection():
+        #         st.success("🟢 LM Studio Connected")
+        #     else:
+        #         st.error("🔴 LM Studio Disconnected")
+        #         with st.expander("How to connect LM Studio"):
+        #             st.markdown("""
+        #             1. Download and install LM Studio
+        #             2. Load a model (e.g., Llama 2, Mistral)
+        #             3. Start the local server
+        #             4. Ensure it's running on localhost:1234
+        #             """)
+        # else:
+        if api_key:
+            st.success("🟢 Google AI Connected")
+            st.info(f"🤖 Using model: {selected_model}")
         else:
-            if api_key:
-                st.success("🟢 Google AI Connected")
-            else:
-                st.error("🔴 Google AI Not Configured")
+            st.error("🔴 Google AI Not Configured")
         
         # Additional controls
         st.markdown("---")
@@ -549,59 +589,117 @@ def main():
         # Run Streamlit app
         create_streamlit_app(agent)
     
-    elif args.interface == 'gradio':
-        if gr is None:
-            print("❌ Gradio not installed. Install with: pip install gradio")
-            sys.exit(1)
-        
-        # Create Gradio interface with backend selection
-        def process_and_answer(file, question, backend_choice, api_key=""):
-            if file is None:
-                return "Please upload a file first!"
-              # Update backend if needed
-            if backend_choice == "Cloud (Google Gemini)":
-                if not api_key.strip():
-                    return "❌ Please provide your Google AI API key for cloud backend"
-                try:
-                    agent.update_backend("cloud", api_key.strip())
-                except Exception as e:
-                    return f"❌ Failed to configure cloud backend: {str(e)}"
-            else:
-                agent.update_backend("local")
-            
-            result = agent.process_file(file.name)
-            if 'error' in result:
-                return f"Error: {result['error']}"
-            
-            context = agent.get_data_context()
-            response = agent.ai_backend.answer_question(question, context)
-            return response
-        
-        # Create inputs
-        inputs = [
-            gr.File(label="Upload Data File"),
-            gr.Textbox(label="Ask a Question", placeholder="What insights can you provide?"),            gr.Dropdown(
-                choices=["Local (LM Studio)", "Cloud (Google Gemini)"],
-                value="Local (LM Studio)",
-                label="AI Backend"
-            ),
-            gr.Textbox(
-                label="Google AI API Key (for cloud backend)",
-                type="password",
-                placeholder="Enter API key here (only needed for cloud backend)",
-                value=os.getenv("GOOGLE_API_KEY", "")
-            )
-        ]
-        
-        interface = gr.Interface(
-            fn=process_and_answer,
-            inputs=inputs,
-            outputs=gr.Textbox(label="AI Response"),
-            title="🤖 AI Data Analyst Agent",
-            description="Upload your data and get AI-powered insights! Choose between local LM Studio or cloud Google Gemini backend."
-        )
-        
-        interface.launch(server_port=args.port)
+    # Comment out Gradio interface for Streamlit deployment
+    # elif args.interface == 'gradio':
+    #     if gr is None:
+    #         print("❌ Gradio not installed. Install with: pip install gradio")
+    #         sys.exit(1)
+    #     
+    #     # Create Gradio interface with backend selection
+    #     def process_and_answer(file, question, backend_choice, api_key=""):
+    #         if file is None:
+    #             return "Please upload a file first!"
+    #           # Update backend if needed
+    #         if backend_choice == "Cloud (Google Gemini)":
+    #             if not api_key.strip():
+    #                 return "❌ Please provide your Google AI API key for cloud backend"
+    #             try:
+    #                 agent.update_backend("cloud", api_key.strip())
+    #             except Exception as e:
+    #                 return f"❌ Failed to configure cloud backend: {str(e)}"
+    #         else:
+    #             agent.update_backend("local")
+    #         
+    #         result = agent.process_file(file.name)
+    #         if 'error' in result:
+    #             return f"Error: {result['error']}"
+    #         
+    #         context = agent.get_data_context()
+    #         response = agent.ai_backend.answer_question(question, context)
+    #         return response
+    #     
+    #     # Create inputs
+    #     inputs = [
+    #         gr.File(label="Upload Data File"),
+    #         gr.Textbox(label="Ask a Question", placeholder="What insights can you provide?"),
+    #         gr.Dropdown(
+    #             choices=["Local (LM Studio)", "Cloud (Google Gemini)"],
+    #             value="Local (LM Studio)",
+    #             label="AI Backend"
+    #         ),
+    #         gr.Textbox(
+    #             label="Google AI API Key (for cloud backend)",
+    #             type="password",
+    #             placeholder="Enter API key here (only needed for cloud backend)",
+    #             value=os.getenv("GOOGLE_API_KEY", "")
+    #         )
+    #     ]
+    #     
+    #     interface = gr.Interface(
+    #         fn=process_and_answer,
+    #         inputs=inputs,
+    #         outputs=gr.Textbox(label="AI Response"),
+    #         title="🤖 AI Data Analyst Agent",
+    #         description="Upload your data and get AI-powered insights! Choose between local LM Studio or cloud Google Gemini backend."
+    #     )
+    #     
+    #     interface.launch(server_port=args.port)
+    
+    # Additional Gradio interface commented out for Streamlit deployment
+    # elif args.interface == 'gradio':
+    #     if gr is None:
+    #         print("❌ Gradio not installed. Install with: pip install gradio")
+    #         sys.exit(1)
+    #     
+    #     # Create Gradio interface with backend selection
+    #     def process_and_answer(file, question, backend_choice, api_key=""):
+    #         if file is None:
+    #             return "Please upload a file first!"
+    #           # Update backend if needed
+    #         if backend_choice == "Cloud (Google Gemini)":
+    #             if not api_key.strip():
+    #                 return "❌ Please provide your Google AI API key for cloud backend"
+    #             try:
+    #                 agent.update_backend("cloud", api_key.strip())
+    #             except Exception as e:
+    #                 return f"❌ Failed to configure cloud backend: {str(e)}"
+    #         else:
+    #             agent.update_backend("local")
+    #         
+    #         result = agent.process_file(file.name)
+    #         if 'error' in result:
+    #             return f"Error: {result['error']}"
+    #         
+    #         context = agent.get_data_context()
+    #         response = agent.ai_backend.answer_question(question, context)
+    #         return response
+    #     
+    #     # Create inputs
+    #     inputs = [
+    #         gr.File(label="Upload Data File"),
+    #         gr.Textbox(label="Ask a Question", placeholder="What insights can you provide?"),
+    #         gr.Dropdown(
+    #             choices=["Local (LM Studio)", "Cloud (Google Gemini)"],
+    #             value="Local (LM Studio)",
+    #             label="AI Backend"
+    #         ),
+    #         gr.Textbox(
+    #             label="Google AI API Key (for cloud backend)",
+    #             type="password",
+    #             placeholder="Enter API key here (only needed for cloud backend)",
+    #             value=os.getenv("GOOGLE_API_KEY", "")
+    #         )
+    #     ]
+    #     
+    #     interface = gr.Interface(
+    #         fn=process_and_answer,
+    #         inputs=inputs,
+    #         outputs=gr.Textbox(label="AI Response"),
+    #         title="🤖 AI Data Analyst Agent",
+    #         description="Upload your data and get AI-powered insights! Choose between local LM Studio or cloud Google Gemini backend."
+    #     )
+    #     
+    #     interface.launch(server_port=args.port)
 
 
 if __name__ == "__main__":

@@ -28,7 +28,7 @@ except ImportError:
     go = None
 
 from processors import FileProcessor
-from clients import LocalLMStudioClient, CloudAIClient
+from clients import CloudAIClient  # LocalLMStudioClient commented out for cloud deployment
 
 
 class AIBackend:
@@ -39,31 +39,35 @@ class AIBackend:
     local LM Studio and cloud-based AI services like Together.ai.
     """
     
-    def __init__(self, backend_type: str = "local", api_key: str = None):
+    def __init__(self, backend_type: str = "cloud", api_key: str = None, model_name: str = None):
         """
         Initialize the AI backend.
         
         Args:
-            backend_type: Type of backend ("local" or "cloud")
+            backend_type: Type of backend ("local" or "cloud") - defaults to cloud for deployment
             api_key: API key for cloud services (optional)
+            model_name: Specific model to use (for cloud backends)
         """
         self.backend_type = backend_type
+        self.model_name = model_name or "gemini-2.0-flash-exp"
         self.conversation_history = []
         
         try:
             if backend_type == "cloud" and api_key:
-                self.client = CloudAIClient(api_key=api_key)
-            elif backend_type == "local":
-                self.client = LocalLMStudioClient()
+                self.client = CloudAIClient(api_key=api_key, model_name=self.model_name)
+            # Comment out local backend for cloud deployment
+            # elif backend_type == "local":
+            #     self.client = LocalLMStudioClient()
             else:
-                # Fallback to local
-                self.client = LocalLMStudioClient()
-                self.backend_type = "local"
+                # For Streamlit deployment, force cloud backend
+                if api_key:
+                    self.client = CloudAIClient(api_key=api_key, model_name=self.model_name)
+                else:
+                    raise ValueError("Google AI API key required for cloud deployment")
         except Exception as e:
             print(f"Warning: Failed to initialize {backend_type} backend: {e}")
-            # Fallback to local backend
-            self.client = LocalLMStudioClient()
-            self.backend_type = "local"
+            # For deployment, raise error instead of falling back to local
+            raise Exception(f"Cloud backend initialization failed: {e}")
     
     def answer_question(self, question: str, context: str = "") -> str:
         """
@@ -138,16 +142,17 @@ class DataAnalystAgent:
         self.current_data = None
         self.current_file_info = None
     
-    def update_backend(self, backend_type: str, api_key: str = None):
+    def update_backend(self, backend_type: str, api_key: str = None, model_name: str = None):
         """
         Update the AI backend with new configuration.
         
         Args:
             backend_type: New backend type
             api_key: API key for cloud services (optional)
+            model_name: Specific model to use (for cloud backends)
         """
         self.backend_type = backend_type
-        self.ai_backend = AIBackend(backend_type, api_key=api_key)
+        self.ai_backend = AIBackend(backend_type, api_key=api_key, model_name=model_name)
     
     def process_file(self, file_path: str) -> Dict[str, Any]:
         """
