@@ -27,8 +27,8 @@ except ImportError:
     px = None
     go = None
 
-from processors import FileProcessor
-from clients import CloudAIClient  # LocalLMStudioClient commented out for cloud deployment
+from .processors import FileProcessor
+from .clients import CloudAIClient  # LocalLMStudioClient commented out for cloud deployment
 
 
 class AIBackend:
@@ -51,23 +51,15 @@ class AIBackend:
         self.backend_type = backend_type
         self.model_name = model_name or "gemini-2.5-pro"
         self.conversation_history = []
-        
-        try:
-            if backend_type == "cloud" and api_key:
+        self.client = None
+
+        # Defer cloud initialization until an API key is provided via the UI
+        if backend_type == "cloud" and api_key:
+            try:
                 self.client = CloudAIClient(api_key=api_key, model_name=self.model_name)
-            # Comment out local backend for cloud deployment
-            # elif backend_type == "local":
-            #     self.client = LocalLMStudioClient()
-            else:
-                # For Streamlit deployment, force cloud backend
-                if api_key:
-                    self.client = CloudAIClient(api_key=api_key, model_name=self.model_name)
-                else:
-                    raise ValueError("Google AI API key required for cloud deployment")
-        except Exception as e:
-            print(f"Warning: Failed to initialize {backend_type} backend: {e}")
-            # For deployment, raise error instead of falling back to local
-            raise Exception(f"Cloud backend initialization failed: {e}")
+            except Exception as e:
+                # Keep client unset; UI will show connection error
+                print(f"Warning: Failed to initialize cloud backend: {e}")
     
     def answer_question(self, question: str, context: str = "", file_uri: Optional[str] = None, mime_type: Optional[str] = None) -> str:
         """
@@ -81,6 +73,8 @@ class AIBackend:
             The AI-generated response
         """
         try:
+            if not self.client:
+                return "Error: Cloud AI is not configured. Please enter your Google AI API key in the sidebar and click 'Configure Google AI'."
             response = self.client.answer_question(question, context, file_uri=file_uri, mime_type=mime_type)
             
             # Add to conversation history
@@ -192,8 +186,13 @@ class DataAnalystAgent:
 
         # If PDF or image, try to upload to Gemini File API (optional)
         try:
-            if isinstance(result, dict) and result.get("type") in ("pdf", "image") and hasattr(self.ai_backend, "client") and hasattr(self.ai_backend.client, "upload_file"):
-                upload_info = self.ai_backend.client.upload_file(file_path)
+            if (
+                isinstance(result, dict)
+                and result.get("type") in ("pdf", "image")
+                and getattr(self.ai_backend, "client", None) is not None
+                and hasattr(self.ai_backend.client, "upload_file")
+            ):
+                upload_info = self.ai_backend.client.upload_file(file_path)  # type: ignore[union-attr]
                 if isinstance(upload_info, dict) and "name" in upload_info:
                     # Attach file_uri and mime_type to result if present
                     name_val = upload_info.get("name")

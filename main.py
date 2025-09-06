@@ -88,63 +88,86 @@ def create_streamlit_app(agent: DataAnalystAgent):
         st.info("🌐 Using Google Gemini AI (Cloud Backend)")
         
         # Backend-specific configuration
-        api_key = None
         st.markdown("#### 🔑 Google AI Configuration")
-        with st.expander("Google AI Setup", expanded=True):
-            api_key = st.text_input(
-                "Google AI API Key",
-                type="password",
-                value=os.getenv("GOOGLE_API_KEY", ""),
-                help="Get your free API key at https://aistudio.google.com/app/apikey",
-                placeholder="Enter your API key here..."
+
+        # Visible API key input (persisted in session_state)
+        input_default = st.session_state.get('google_api_key', os.getenv("GOOGLE_API_KEY", ""))
+        api_key_input = st.text_input(
+            "Google AI API Key",
+            type="password",
+            value=input_default,
+            help="Get your free API key at https://aistudio.google.com/app/apikey",
+            placeholder="Enter your API key here...",
+            key="google_api_key_input"
+        )
+
+        # Configure button applies the key to the agent backend and stores it in session_state
+        col_k1, col_k2 = st.columns([3, 1])
+        with col_k2:
+            if st.button("Configure Google AI", use_container_width=True):
+                st.session_state['google_api_key'] = api_key_input
+                # Apply backend change right away
+                selected_model = st.session_state.get('selected_model', 'gemini-2.5-pro')
+                try:
+                    agent.update_backend("cloud", api_key_input, model_name=selected_model)
+                    st.success("✅ Google AI backend configured!")
+                except Exception as e:
+                    st.error(f"❌ Backend error: {str(e)}")
+
+        # Short helper expander
+        with st.expander("Google AI Setup", expanded=False):
+            st.markdown("Enter your Google AI API key in the field above and click 'Configure Google AI' to apply it.")
+
+        # Determine effective API key (session takes precedence)
+        current_key = st.session_state.get('google_api_key') or api_key_input
+
+        # Model selection dropdown (only if a key is available)
+        if current_key:
+            st.markdown("#### 🤖 Select AI Model")
+            available_models = {
+                "gemini-2.5-pro": "Gemini 2.5 Pro - Top-end reasoning and multimodal model",
+                "gemini-2.5-flash": "Gemini 2.5 Flash - Balanced price-performance", 
+                "gemini-2.5-flash-lite": "Gemini 2.5 Flash Lite - Cost-efficient, high throughput",
+                "gemini-2.0-flash-experimental": "Gemini 2.0 Flash (Experimental) - Early release with better benchmarks",
+                "gemini-2.0-flash": "Gemini 2.0 Flash - New multimodal model with advanced capabilities",
+                "gemini-2.0-flash-lite": "Gemini 2.0 Flash Lite - Optimized for low latency and cost"
+            }
+
+            selected_model = st.selectbox(
+                "Choose AI Model:",
+                options=list(available_models.keys()),
+                format_func=lambda x: available_models[x],
+                index=0,
+                help="Different models offer various capabilities, performance levels, and cost efficiency",
+                key="selected_model"
             )
-            
-            # Model selection dropdown
-            if api_key:
-                st.markdown("#### 🤖 Select AI Model")
-                available_models = {
-                    "gemini-2.5-pro": "Gemini 2.5 Pro - Top-end reasoning and multimodal model",
-                    "gemini-2.5-flash": "Gemini 2.5 Flash - Balanced price-performance", 
-                    "gemini-2.5-flash-lite": "Gemini 2.5 Flash Lite - Cost-efficient, high throughput",
-                    "gemini-2.0-flash-experimental": "Gemini 2.0 Flash (Experimental) - Early release with better benchmarks",
-                    "gemini-2.0-flash": "Gemini 2.0 Flash - New multimodal model with advanced capabilities",
-                    "gemini-2.0-flash-lite": "Gemini 2.0 Flash Lite - Optimized for low latency and cost"
-                }
-                
-                selected_model = st.selectbox(
-                    "Choose AI Model:",
-                    options=list(available_models.keys()),
-                    format_func=lambda x: available_models[x],
-                    index=0,  # Default to Gemini 2.5 Pro (most capable)
-                    help="Different models offer various capabilities, performance levels, and cost efficiency"
-                )
-                
-                # Store selected model in session state
-                st.session_state['selected_model'] = selected_model
-                
-                # Show model info with updated descriptions
-                model_info = {
-                    "gemini-2.5-pro": "🎯 Most capable model with top-end reasoning and multimodal capabilities",
-                    "gemini-2.5-flash": "⚡ Best balance of performance and cost-effectiveness",
-                    "gemini-2.5-flash-lite": "💨 High throughput model optimized for cost efficiency",
-                    "gemini-2.0-flash-experimental": "🚀 Experimental model with enhanced benchmarks vs Gemini 1.5 Pro",
-                    "gemini-2.0-flash": "� Advanced multimodal model with new capabilities",
-                    "gemini-2.0-flash-lite": "⚡ Ultra-fast responses with low latency optimization"
-                }
-                
-                st.info(model_info[selected_model])
-            
-            if not api_key:
-                st.warning("⚠️ API key required for AI analysis")
-                st.info("💡 Set GOOGLE_API_KEY environment variable")
-                st.markdown("[🔗 Get API Key](https://aistudio.google.com/app/apikey)")
+
+            # Store selected model in session state
+            st.session_state['selected_model'] = selected_model
+
+            # Show model info with updated descriptions
+            model_info = {
+                "gemini-2.5-pro": "🎯 Most capable model with top-end reasoning and multimodal capabilities",
+                "gemini-2.5-flash": "⚡ Best balance of performance and cost-effectiveness",
+                "gemini-2.5-flash-lite": "💨 High throughput model optimized for cost efficiency",
+                "gemini-2.0-flash-experimental": "🚀 Experimental model with enhanced benchmarks vs Gemini 1.5 Pro",
+                "gemini-2.0-flash": "� Advanced multimodal model with new capabilities",
+                "gemini-2.0-flash-lite": "⚡ Ultra-fast responses with low latency optimization"
+            }
+
+            st.info(model_info[selected_model])
+        else:
+            st.warning("⚠️ API key required for AI analysis")
+            st.info("💡 You can paste your GOOGLE_API_KEY here or set the environment variable")
+            st.markdown("[🔗 Get API Key](https://aistudio.google.com/app/apikey)")
         
         # Update backend configuration
         selected_model = st.session_state.get('selected_model', 'gemini-2.5-pro')
-        if backend_type != agent.backend_type or (backend_type == "cloud" and api_key):
+        # Use the current_key (session or input) to decide whether to configure backend
+        if backend_type != agent.backend_type or (backend_type == "cloud" and current_key):
             try:
-                agent.update_backend(backend_type, api_key, model_name=selected_model)
-                if backend_type == "cloud" and api_key:
+                agent.update_backend(backend_type, current_key, model_name=selected_model)
+                if backend_type == "cloud" and current_key:
                     st.success("✅ Google AI backend configured!")
             except Exception as e:
                 st.error(f"❌ Backend error: {str(e)}")
@@ -167,7 +190,7 @@ def create_streamlit_app(agent: DataAnalystAgent):
         #             4. Ensure it's running on localhost:1234
         #             """)
         # else:
-        if api_key:
+        if current_key:
             st.success("🟢 Google AI Connected")
             st.info(f"🤖 Using model: {selected_model}")
         else:
