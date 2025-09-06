@@ -222,6 +222,16 @@ class DataAnalystAgent:
         Returns:
             Formatted context string describing the current data
         """
+        # Check if we have multi-file results from session state
+        try:
+            import streamlit as st
+            if hasattr(st, 'session_state') and st.session_state.get('successful_results'):
+                results = st.session_state['successful_results']
+                return self._build_multi_file_context(results)
+        except ImportError:
+            pass
+        
+        # Fallback to single-file context
         if self.current_data is not None and isinstance(self.current_data, pd.DataFrame):
             # Structured data context
             context = f"Dataset Overview:\n"
@@ -251,3 +261,79 @@ class DataAnalystAgent:
             return context
         else:
             return "No data loaded"
+
+    def _build_multi_file_context(self, results: List[Dict[str, Any]]) -> str:
+        """Build context string from multiple processed files."""
+        if not results:
+            return "No data loaded"
+        
+        context = f"Multi-File Analysis ({len(results)} files):\n\n"
+        
+        data_files = []
+        text_files = []
+        
+        for i, result in enumerate(results):
+            filename = result.get('original_filename', f'File_{i+1}')
+            file_type = result.get('type', 'unknown')
+            
+            if 'data' in result and result['data'] is not None:
+                df = result['data']
+                data_files.append({
+                    'filename': filename,
+                    'type': file_type,
+                    'data': df
+                })
+            elif 'text' in result:
+                text_files.append({
+                    'filename': filename,
+                    'type': file_type,
+                    'text': result['text']
+                })
+        
+        # Summarize data files
+        if data_files:
+            context += f"Data Files ({len(data_files)}):\n"
+            total_rows = 0
+            all_columns = set()
+            
+            for df_info in data_files:
+                df = df_info['data']
+                rows = len(df)
+                cols = list(df.columns)
+                total_rows += rows
+                all_columns.update(cols)
+                
+                context += f"- {df_info['filename']} ({df_info['type']}): {rows} rows, {len(cols)} columns\n"
+                context += f"  Columns: {', '.join(cols[:5])}{'...' if len(cols) > 5 else ''}\n"
+            
+            context += f"\nAggregate Data Summary:\n"
+            context += f"- Total rows across all files: {total_rows}\n"
+            context += f"- Unique columns: {len(all_columns)}\n"
+            context += f"- All columns: {', '.join(sorted(all_columns)[:10])}{'...' if len(all_columns) > 10 else ''}\n"
+            
+            # Show sample from first data file
+            if data_files:
+                first_df = data_files[0]['data']
+                context += f"\nSample data from {data_files[0]['filename']}:\n"
+                context += f"{first_df.head(3).to_string()}\n"
+        
+        # Summarize text files
+        if text_files:
+            context += f"\nText/Document Files ({len(text_files)}):\n"
+            total_words = 0
+            
+            for text_info in text_files:
+                text = text_info['text']
+                word_count = len(text.split())
+                total_words += word_count
+                
+                context += f"- {text_info['filename']} ({text_info['type']}): {word_count} words, {len(text)} chars\n"
+                
+                # Show preview of first text file
+                if text_info == text_files[0]:
+                    preview = text[:500] + "..." if len(text) > 500 else text
+                    context += f"  Preview: {preview}\n"
+            
+            context += f"\nTotal words across text files: {total_words}\n"
+        
+        return context

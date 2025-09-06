@@ -228,23 +228,25 @@ def create_streamlit_app(agent: DataAnalystAgent):
         col1, col2 = st.columns([2, 1])
         
         with col1:
-            uploaded_file = st.file_uploader(
-                "Choose your data file",
+            uploaded_files = st.file_uploader(
+                "Choose your data files",
                 type=['csv', 'xlsx', 'xls', 'pdf', 'docx', 'txt', 'png', 'jpg', 'jpeg'],
-                help="Drag and drop or click to browse",
-                key="file_uploader"
+                help="Drag and drop or click to browse (supports multiple files)",
+                key="file_uploader",
+                accept_multiple_files=True
             )
         
         with col2:
-            if uploaded_file:
-                st.markdown("**File Details:**")
-                st.info(f"📄 **Name:** {uploaded_file.name}")
-                st.info(f"📊 **Size:** {uploaded_file.size:,} bytes")
-                st.info(f"🔖 **Type:** {uploaded_file.type}")
+            if uploaded_files:
+                st.markdown(f"**Files Selected ({len(uploaded_files)}):**")
+                for i, uploaded_file in enumerate(uploaded_files[:3]):  # Show first 3
+                    st.info(f"� **{uploaded_file.name}** ({uploaded_file.size:,} bytes)")
+                if len(uploaded_files) > 3:
+                    st.info(f"... and {len(uploaded_files) - 3} more files")
         
-        # Process uploaded file
-        if uploaded_file is not None:
-            process_uploaded_file(agent, uploaded_file)
+        # Process uploaded files
+        if uploaded_files:
+            process_uploaded_files(agent, uploaded_files)
     
     # Tab 2: Data Analysis Overview
     with tab2:
@@ -261,6 +263,95 @@ def create_streamlit_app(agent: DataAnalystAgent):
             st.info("👆 Please upload data to create visualizations")    # Tab 4: AI Chat Interface
     with tab4:
         show_ai_chat_interface(agent)
+
+
+def process_uploaded_files(agent: DataAnalystAgent, uploaded_files):
+    """Process and display multiple uploaded files information"""
+    assert st is not None
+    
+    if not uploaded_files:
+        return
+    
+    results = []
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    for i, uploaded_file in enumerate(uploaded_files):
+        status_text.text(f"Processing {uploaded_file.name}...")
+        progress_bar.progress((i + 1) / len(uploaded_files))
+        
+        # Save uploaded file temporarily
+        with tempfile.NamedTemporaryFile(delete=False, suffix=f".{uploaded_file.name.split('.')[-1]}") as tmp_file:
+            tmp_file.write(uploaded_file.getvalue())
+            tmp_file_path = tmp_file.name
+        
+        # Process file
+        with st.spinner(f"🔄 Processing {uploaded_file.name}..."):
+            result = agent.process_file(tmp_file_path)
+            result['original_filename'] = uploaded_file.name
+            results.append(result)
+        
+        # Clean up temporary file with retries (Windows may lock files briefly)
+        def _remove_path(path: str, retries: int = 5, delay: float = 0.2):
+            for attempt in range(retries):
+                try:
+                    if os.path.exists(path):
+                        os.remove(path)
+                    return True
+                except PermissionError:
+                    time.sleep(delay)
+                except Exception:
+                    break
+            return False
+
+        removed = _remove_path(tmp_file_path)
+        if not removed:
+            # If we couldn't delete, show a non-blocking warning and continue
+            try:
+                st.warning(f"Temporary file could not be deleted immediately: {tmp_file_path}")
+            except Exception:
+                pass
+    
+    progress_bar.empty()
+    status_text.empty()
+    
+    # Display results summary
+    successful_files = [r for r in results if 'error' not in r]
+    error_files = [r for r in results if 'error' in r]
+    
+    if successful_files:
+        st.success(f"✅ Successfully processed {len(successful_files)} file(s)!")
+        
+        # Show summary
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("**📊 Processed Files:**")
+            for result in successful_files:
+                file_type = result.get('type', 'unknown')
+                filename = result.get('original_filename', 'unknown')
+                st.write(f"• {filename} ({file_type})")
+        
+        with col2:
+            st.markdown("**📈 Data Summary:**")
+            total_rows = sum(len(r.get('data', [])) for r in successful_files if 'data' in r)
+            total_text_files = sum(1 for r in successful_files if 'text' in r)
+            if total_rows > 0:
+                st.metric("Total Data Rows", f"{total_rows:,}")
+            if total_text_files > 0:
+                st.metric("Text/Document Files", total_text_files)
+    
+    if error_files:
+        st.error(f"❌ Failed to process {len(error_files)} file(s)")
+        with st.expander("Error Details"):
+            for result in error_files:
+                filename = result.get('original_filename', 'unknown')
+                error_msg = result.get('error', 'Unknown error')
+                st.write(f"**{filename}:** {error_msg}")
+    
+    # Store all processed results for other tabs
+    st.session_state['file_processed'] = len(successful_files) > 0
+    st.session_state['file_results'] = results
+    st.session_state['successful_results'] = successful_files
 
 
 def process_uploaded_file(agent: DataAnalystAgent, uploaded_file):
@@ -313,77 +404,92 @@ def show_data_analysis(agent: DataAnalystAgent):
     assert st is not None
     st.markdown("### 📊 Data Analysis Overview")
     
-    if 'file_result' not in st.session_state:
-        st.warning("Please upload and process a file first")
+    if 'file_processed' not in st.session_state or not st.session_state['file_processed']:
+        st.warning("Please upload and process file(s) first")
         return
     
-    result = st.session_state['file_result']
+    results = st.session_state.get('successful_results', [])
+    if not results:
+        st.warning("No successfully processed files available")
+        return
     
-    # File Information Section
+    # Multi-file overview
+    st.markdown(f"#### 📁 Analysis of {len(results)} File(s)")
+    
+    # Aggregate statistics
     col1, col2, col3 = st.columns(3)
     
+    total_data_files = sum(1 for r in results if 'data' in r)
+    total_text_files = sum(1 for r in results if 'text' in r)
+    total_rows = sum(len(r['data']) if 'data' in r and r['data'] is not None else 0 for r in results)
+    
     with col1:
-        st.markdown("#### 📄 File Info")
-        if 'info' in result:
-            for key, value in result['info'].items():
-                if isinstance(value, (int, float, str)):
-                    st.metric(key.replace('_', ' ').title(), value)
+        st.metric("Data Files", total_data_files)
+        st.metric("Text/Document Files", total_text_files)
     
     with col2:
-        st.markdown("#### 📈 Data Stats")
-        if 'data' in result and not result['data'].empty:
-            df = result['data']
-            st.metric("Total Rows", f"{len(df):,}")
-            st.metric("Total Columns", len(df.columns))
-            st.metric("Memory Usage", f"{df.memory_usage(deep=True).sum() / 1024:.1f} KB")
+        if total_rows > 0:
+            st.metric("Total Data Rows", f"{total_rows:,}")
+        
+        # Calculate total file size approximation
+        total_memory = sum(
+            r['data'].memory_usage(deep=True).sum() / 1024 if 'data' in r and r['data'] is not None else 0 
+            for r in results
+        )
+        if total_memory > 0:
+            st.metric("Total Memory Usage", f"{total_memory:.1f} KB")
     
     with col3:
-        st.markdown("#### 🔍 Data Quality")
-        if 'data' in result and not result['data'].empty:
-            df = result['data']
-            missing_data = df.isnull().sum().sum()
-            st.metric("Missing Values", missing_data)
-            st.metric("Complete Rows", f"{len(df.dropna()):,}")
-            st.metric("Data Types", len(df.dtypes.unique()))
+        # Data quality overview
+        total_missing = sum(
+            r['data'].isnull().sum().sum() if 'data' in r and r['data'] is not None else 0 
+            for r in results
+        )
+        if total_missing >= 0:
+            st.metric("Total Missing Values", total_missing)
     
-    # Data Preview Section
-    if 'data' in result and not result['data'].empty:
-        st.markdown("#### 🔍 Data Preview")
-        
-        # Show sample data
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.dataframe(result['data'].head(10), use_container_width=True)
-        
-        with col2:
-            st.markdown("**Column Info:**")
-            for col in result['data'].columns[:10]:  # Show first 10 columns
-                dtype = str(result['data'][col].dtype)
-                st.write(f"**{col}:** {dtype}")
-        
-        # Data Summary Statistics
-        st.markdown("#### 📊 Summary Statistics")
-        numeric_cols = result['data'].select_dtypes(include=[np.number]).columns
-        
-        if len(numeric_cols) > 0:
-            st.dataframe(result['data'][numeric_cols].describe(), use_container_width=True)
-        else:
-            st.info("No numeric columns found for statistical summary")
+    # Individual file details
+    st.markdown("#### 📋 Individual File Details")
     
-    # Text content preview for non-tabular data
-    elif 'text' in result:
-        st.markdown("#### 📄 Content Preview")
-        content_preview = result['text'][:2000] + "..." if len(result['text']) > 2000 else result['text']
-        st.text_area("Document Content", content_preview, height=300, disabled=True)
+    for i, result in enumerate(results):
+        filename = result.get('original_filename', f'File {i+1}')
+        file_type = result.get('type', 'unknown')
         
-        # Basic text statistics
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Characters", len(result['text']))
-        with col2:
-            st.metric("Words", len(result['text'].split()))
-        with col3:
-            st.metric("Lines", result['text'].count('\n') + 1)
+        with st.expander(f"📄 {filename} ({file_type})", expanded=i == 0):
+            if 'data' in result and result['data'] is not None:
+                df = result['data']
+                
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.dataframe(df.head(5), use_container_width=True)
+                
+                with col2:
+                    st.markdown("**Column Info:**")
+                    for col in df.columns[:5]:  # Show first 5 columns
+                        dtype = str(df[col].dtype)
+                        st.write(f"**{col}:** {dtype}")
+                    if len(df.columns) > 5:
+                        st.write(f"... and {len(df.columns) - 5} more columns")
+                
+                # Basic statistics for numeric columns
+                numeric_cols = df.select_dtypes(include=[np.number]).columns
+                if len(numeric_cols) > 0:
+                    st.markdown("**📊 Numeric Summary:**")
+                    st.dataframe(df[numeric_cols].describe(), use_container_width=True)
+            
+            elif 'text' in result:
+                # Text content preview
+                content = result['text']
+                content_preview = content[:1000] + "..." if len(content) > 1000 else content
+                st.text_area("Content Preview", content_preview, height=200, disabled=True, key=f"text_preview_{i}")
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Characters", len(content))
+                with col2:
+                    st.metric("Words", len(content.split()))
+                with col3:
+                    st.metric("Lines", content.count('\n') + 1)
 
 
 def show_visualizations(agent: DataAnalystAgent):
@@ -391,17 +497,29 @@ def show_visualizations(agent: DataAnalystAgent):
     assert st is not None
     st.markdown("### 📈 Advanced Visualizations")
     
-    if 'file_result' not in st.session_state:
-        st.warning("Please upload and process a file first")
+    if 'file_processed' not in st.session_state or not st.session_state['file_processed']:
+        st.warning("Please upload and process file(s) first")
         return
     
-    result = st.session_state['file_result']
+    results = st.session_state.get('successful_results', [])
+    data_results = [r for r in results if 'data' in r and r['data'] is not None]
     
-    if 'data' not in result or result['data'].empty:
-        st.warning("No data available for visualization")
+    if not data_results:
+        st.warning("No data files available for visualization")
         return
     
-    df = result['data']
+    # File selection for visualization
+    if len(data_results) > 1:
+        st.markdown("#### 📁 Select Dataset for Visualization")
+        file_options = {f"{r.get('original_filename', f'File {i+1}')}": i for i, r in enumerate(data_results)}
+        selected_file = st.selectbox("Choose dataset:", options=list(file_options.keys()))
+        selected_idx = file_options[selected_file]
+        df = data_results[selected_idx]['data']
+        st.info(f"Visualizing: {selected_file}")
+    else:
+        df = data_results[0]['data']
+        st.info(f"Visualizing: {data_results[0].get('original_filename', 'Dataset')}")
+    
     numeric_columns = df.select_dtypes(include=[np.number]).columns
     
     if len(numeric_columns) == 0:
@@ -441,6 +559,8 @@ def show_visualizations(agent: DataAnalystAgent):
         if st.button("📊 Create Summary Dashboard", key="summary_dashboard"):
             with st.spinner("Creating comprehensive dashboard..."):
                 try:
+                    # Temporarily set current_data for visualization engine
+                    agent.current_data = df
                     viz_engine = VisualizationEngine(agent)
                     fig = viz_engine.create_summary_dashboard()
                     if fig:
@@ -454,6 +574,8 @@ def show_visualizations(agent: DataAnalystAgent):
         if st.button("🔗 Advanced Correlation Analysis", key="advanced_corr"):
             with st.spinner("Creating advanced correlation analysis..."):
                 try:
+                    # Temporarily set current_data for visualization engine
+                    agent.current_data = df
                     viz_engine = VisualizationEngine(agent)
                     fig = viz_engine.create_correlation_matrix()
                     if fig:
@@ -487,8 +609,8 @@ def show_ai_chat_interface(agent: DataAnalystAgent):
     st.markdown("### 💬 AI-Powered Data Analysis Chat")
     
     # Check if data is available
-    if agent.current_data is None and not agent.current_file_info:
-        st.warning("⚠️ Please upload a file first to enable AI analysis")
+    if not st.session_state.get('file_processed', False):
+        st.warning("⚠️ Please upload file(s) first to enable AI analysis")
         st.info("👆 Go to the 'Data Upload' tab to upload your data")
         return
     
@@ -553,18 +675,32 @@ def show_ai_chat_interface(agent: DataAnalystAgent):
         )
     
     if analyze_button and isinstance(question, str) and question.strip():
-        if agent.current_data is not None or agent.current_file_info:
+        if st.session_state.get('file_processed', False):
             with st.spinner("🤖 AI is analyzing your data..."):
                 try:
                     context = agent.get_data_context()
-                    # If the last processed file has a Gemini file_uri, include it
+                    # If the last processed files have Gemini file_uris, include them
                     file_uri = None
                     mime_type = None
-                    fr = st.session_state.get('file_result')
-                    if isinstance(fr, dict):
-                        file_uri = fr.get('file_uri')
-                        mime_type = fr.get('mime_type')
+                    results = st.session_state.get('successful_results', [])
+                    
+                    # For multi-file support, we'll use the first file with file_uri for now
+                    # Future enhancement could combine multiple file_uris
+                    for result in results:
+                        if result.get('file_uri'):
+                            file_uri = result.get('file_uri')
+                            mime_type = result.get('mime_type')
+                            break
+                    
                     question_str = question or ""
+                    
+                    # Build enhanced context for multi-file analysis
+                    if len(results) > 1:
+                        context += f"\n\nNote: This analysis covers {len(results)} files. "
+                        context += "The files processed are: " + ", ".join([
+                            r.get('original_filename', 'unknown') for r in results
+                        ])
+                    
                     response = agent.ai_backend.answer_question(question_str, context, file_uri=file_uri, mime_type=mime_type)
                       # Display the response in a nice format
                     st.markdown("#### 🎯 AI Analysis Result")
@@ -579,7 +715,7 @@ def show_ai_chat_interface(agent: DataAnalystAgent):
                 except Exception as e:
                     st.error(f"❌ Error during analysis: {str(e)}")
         else:
-            st.warning("Please upload a file first!")
+            st.warning("Please upload file(s) first!")
     elif analyze_button and (not isinstance(question, str) or not question.strip()):
         st.warning("Please enter a question before analyzing!")
     
