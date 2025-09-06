@@ -133,6 +133,10 @@ def create_streamlit_app(agent: DataAnalystAgent):
                 "gemini-2.0-flash-lite": "Gemini 2.0 Flash Lite - Optimized for low latency and cost"
             }
 
+            # Initialize default selected model once
+            if 'selected_model' not in st.session_state:
+                st.session_state['selected_model'] = 'gemini-2.5-pro'
+
             selected_model = st.selectbox(
                 "Choose AI Model:",
                 options=list(available_models.keys()),
@@ -141,9 +145,6 @@ def create_streamlit_app(agent: DataAnalystAgent):
                 help="Different models offer various capabilities, performance levels, and cost efficiency",
                 key="selected_model"
             )
-
-            # Store selected model in session state
-            st.session_state['selected_model'] = selected_model
 
             # Show model info with updated descriptions
             model_info = {
