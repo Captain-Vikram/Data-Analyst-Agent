@@ -12,13 +12,12 @@ __license__ = "MIT"
 from .core import DataAnalystAgent, AIBackend
 from .processors import FileProcessor
 from .visualization import VisualizationEngine
-from .clients import LocalLMStudioClient, CloudAIClient
+from .clients import CloudAIClient
 
 __all__ = [
     "DataAnalystAgent",
     "AIBackend", 
     "FileProcessor",
     "VisualizationEngine",
-    "LocalLMStudioClient",
     "CloudAIClient"
 ]
