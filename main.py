@@ -20,6 +20,7 @@ import os
 import sys
 import argparse
 import tempfile
+import time
 from typing import Dict, Any
 import warnings
 warnings.filterwarnings('ignore')
@@ -274,8 +275,26 @@ def process_uploaded_file(agent: DataAnalystAgent, uploaded_file):
     with st.spinner("🔄 Processing file..."):
         result = agent.process_file(tmp_file_path)
     
-    # Clean up temporary file
-    os.unlink(tmp_file_path)
+    # Clean up temporary file with retries (Windows may lock files briefly)
+    def _remove_path(path: str, retries: int = 5, delay: float = 0.2):
+        for attempt in range(retries):
+            try:
+                if os.path.exists(path):
+                    os.remove(path)
+                return True
+            except PermissionError:
+                time.sleep(delay)
+            except Exception:
+                break
+        return False
+
+    removed = _remove_path(tmp_file_path)
+    if not removed:
+        # If we couldn't delete, show a non-blocking warning and continue
+        try:
+            st.warning(f"Temporary file could not be deleted immediately: {tmp_file_path}")
+        except Exception:
+            pass
     
     if 'error' in result:
         st.error(f"❌ Error: {result['error']}")
