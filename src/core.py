@@ -39,7 +39,7 @@ class AIBackend:
     local LM Studio and cloud-based AI services like Together.ai.
     """
     
-    def __init__(self, backend_type: str = "cloud", api_key: str = None, model_name: str = None):
+    def __init__(self, backend_type: str = "cloud", api_key: Optional[str] = None, model_name: Optional[str] = None):
         """
         Initialize the AI backend.
         
@@ -49,7 +49,7 @@ class AIBackend:
             model_name: Specific model to use (for cloud backends)
         """
         self.backend_type = backend_type
-        self.model_name = model_name or "gemini-2.0-flash-exp"
+        self.model_name = model_name or "gemini-2.5-pro"
         self.conversation_history = []
         
         try:
@@ -69,7 +69,7 @@ class AIBackend:
             # For deployment, raise error instead of falling back to local
             raise Exception(f"Cloud backend initialization failed: {e}")
     
-    def answer_question(self, question: str, context: str = "") -> str:
+    def answer_question(self, question: str, context: str = "", file_uri: Optional[str] = None, mime_type: Optional[str] = None) -> str:
         """
         Answer a question using the configured AI backend.
         
@@ -81,7 +81,7 @@ class AIBackend:
             The AI-generated response
         """
         try:
-            response = self.client.answer_question(question, context)
+            response = self.client.answer_question(question, context, file_uri=file_uri, mime_type=mime_type)
             
             # Add to conversation history
             self.conversation_history.append({
@@ -123,15 +123,15 @@ class AIBackend:
 class DataAnalystAgent:
     """
     Main application class that orchestrates data analysis workflows.
-    
+
     This class provides the primary interface for uploading files,
     processing data, and generating AI-powered insights.
     """
-    
-    def __init__(self, backend_type: str = "local", api_key: str = None):
+
+    def __init__(self, backend_type: str = "local", api_key: Optional[str] = None):
         """
         Initialize the Data Analyst Agent.
-        
+
         Args:
             backend_type: Type of AI backend to use
             api_key: API key for cloud services (optional)
@@ -139,13 +139,14 @@ class DataAnalystAgent:
         self.backend_type = backend_type
         self.file_processor = FileProcessor()
         self.ai_backend = AIBackend(backend_type, api_key)
+        # Track current processed data and file metadata
         self.current_data = None
         self.current_file_info = None
-    
-    def update_backend(self, backend_type: str, api_key: str = None, model_name: str = None):
+
+    def update_backend(self, backend_type: str, api_key: Optional[str] = None, model_name: Optional[str] = None):
         """
         Update the AI backend with new configuration.
-        
+
         Args:
             backend_type: New backend type
             api_key: API key for cloud services (optional)
@@ -153,79 +154,97 @@ class DataAnalystAgent:
         """
         self.backend_type = backend_type
         self.ai_backend = AIBackend(backend_type, api_key=api_key, model_name=model_name)
-    
+
     def process_file(self, file_path: str) -> Dict[str, Any]:
         """
         Process uploaded file based on extension.
-        
+
         Args:
             file_path: Path to the file to process
-            
+
         Returns:
             Dictionary containing processed data and metadata
         """
         if not os.path.exists(file_path):
-            return {'error': 'File not found'}
-        
+            return {"error": "File not found"}
+
         file_ext = os.path.splitext(file_path)[1].lower()
-        
-        if file_ext == '.csv':
+
+        if file_ext == ".csv":
             result = self.file_processor.process_csv(file_path)
-        elif file_ext in ['.xlsx', '.xls']:
+        elif file_ext in [".xlsx", ".xls"]:
             result = self.file_processor.process_excel(file_path)
-        elif file_ext == '.pdf':
+        elif file_ext == ".pdf":
             result = self.file_processor.process_pdf(file_path)
-        elif file_ext == '.docx':
+        elif file_ext == ".docx":
             result = self.file_processor.process_docx(file_path)
-        elif file_ext in ['.png', '.jpg', '.jpeg', '.tiff', '.bmp']:
+        elif file_ext in [".png", ".jpg", ".jpeg", ".tiff", ".bmp"]:
             result = self.file_processor.process_image(file_path)
-        elif file_ext == '.txt':
+        elif file_ext == ".txt":
             try:
-                with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, "r", encoding="utf-8") as f:
                     content = f.read()
-                result = {'text': content, 'info': {'word_count': len(content.split())}}
+                result = {"text": content, "info": {"word_count": len(content.split())}, "type": "txt"}
             except Exception as e:
-                result = {'error': f'Text file processing failed: {str(e)}'}
+                result = {"error": f"Text file processing failed: {str(e)}"}
         else:
-            result = {'error': f'Unsupported file format: {file_ext}'}
-        
-        if 'data' in result:
-            self.current_data = result['data']
-            self.current_file_info = result.get('info', {})
-        elif 'text' in result:
+            result = {"error": f"Unsupported file format: {file_ext}"}
+
+        # If PDF or image, try to upload to Gemini File API (optional)
+        try:
+            if isinstance(result, dict) and result.get("type") in ("pdf", "image") and hasattr(self.ai_backend, "client") and hasattr(self.ai_backend.client, "upload_file"):
+                upload_info = self.ai_backend.client.upload_file(file_path)
+                if isinstance(upload_info, dict) and "name" in upload_info:
+                    # Attach file_uri and mime_type to result if present
+                    name_val = upload_info.get("name")
+                    if isinstance(name_val, str) and name_val:
+                        result["file_uri"] = name_val
+                    mime_val = upload_info.get("mimeType")
+                    if isinstance(mime_val, str) and mime_val:
+                        result["mime_type"] = mime_val
+        except Exception:
+            # Non-fatal: continue without file_uri
+            pass
+
+        if isinstance(result, dict) and "data" in result:
+            self.current_data = result["data"]
+            self.current_file_info = result.get("info", {}) if isinstance(result.get("info", {}), dict) else {}
+        elif isinstance(result, dict) and "text" in result:
+            # For unstructured content like PDF/TXT/Images
+            self.current_data = None
             self.current_file_info = result
-        
+
         return result
-    
+
     def get_data_context(self) -> str:
         """
         Generate context string from current data.
-        
+
         Returns:
             Formatted context string describing the current data
         """
-        if self.current_data is not None:
+        if self.current_data is not None and isinstance(self.current_data, pd.DataFrame):
             # Structured data context
             context = f"Dataset Overview:\n"
             context += f"- Rows: {len(self.current_data)}\n"
             context += f"- Columns: {len(self.current_data.columns)}\n"
             context += f"- Column names: {', '.join(self.current_data.columns)}\n\n"
-            
+
             # Data types and basic stats
             context += "Data Types:\n"
             for col in self.current_data.columns:
                 context += f"- {col}: {self.current_data[col].dtype}\n"
-            
+
             context += f"\nFirst 5 rows:\n{self.current_data.head().to_string()}\n"
-            
+
             # Basic statistics
             if len(self.current_data) > 0:
                 context += f"\nBasic Statistics:\n{self.current_data.describe().to_string()}\n"
-            
+
             return context
-        elif self.current_file_info and 'text' in self.current_file_info:
+        elif isinstance(self.current_file_info, dict) and "text" in self.current_file_info:
             # Unstructured data context
-            text = self.current_file_info['text']
+            text = self.current_file_info["text"]
             context = f"Document Content:\n"
             context += f"- Word count: {len(text.split())}\n"
             context += f"- Character count: {len(text)}\n\n"

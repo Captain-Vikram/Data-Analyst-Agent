@@ -51,6 +51,7 @@ except ImportError:
 
 def create_streamlit_app(agent: DataAnalystAgent):
     """Create an improved Streamlit interface with better organization"""
+    assert st is not None
     st.set_page_config(
         page_title="🤖 Advanced AI Data Analyst Agent",
         page_icon="🤖",
@@ -102,31 +103,33 @@ def create_streamlit_app(agent: DataAnalystAgent):
             if api_key:
                 st.markdown("#### 🤖 Select AI Model")
                 available_models = {
-                    "gemini-2.0-flash-exp": "Gemini 2.0 Flash (Experimental) - Latest & Fastest",
-                    "gemini-2.0-flash": "Gemini 2.0 Flash - Fast & Efficient",
-                    "gemini-1.5-pro": "Gemini 1.5 Pro - Most Capable",
-                    "gemini-1.5-flash": "Gemini 1.5 Flash - Fast & Cost-Effective",
-                    "gemini-1.0-pro": "Gemini 1.0 Pro - Balanced Performance"
+                    "gemini-2.5-pro": "Gemini 2.5 Pro - Top-end reasoning and multimodal model",
+                    "gemini-2.5-flash": "Gemini 2.5 Flash - Balanced price-performance", 
+                    "gemini-2.5-flash-lite": "Gemini 2.5 Flash Lite - Cost-efficient, high throughput",
+                    "gemini-2.0-flash-experimental": "Gemini 2.0 Flash (Experimental) - Early release with better benchmarks",
+                    "gemini-2.0-flash": "Gemini 2.0 Flash - New multimodal model with advanced capabilities",
+                    "gemini-2.0-flash-lite": "Gemini 2.0 Flash Lite - Optimized for low latency and cost"
                 }
                 
                 selected_model = st.selectbox(
                     "Choose AI Model:",
                     options=list(available_models.keys()),
                     format_func=lambda x: available_models[x],
-                    index=0,  # Default to latest model
-                    help="Different models offer various capabilities and response speeds"
+                    index=0,  # Default to Gemini 2.5 Pro (most capable)
+                    help="Different models offer various capabilities, performance levels, and cost efficiency"
                 )
                 
                 # Store selected model in session state
                 st.session_state['selected_model'] = selected_model
                 
-                # Show model info
+                # Show model info with updated descriptions
                 model_info = {
-                    "gemini-2.0-flash-exp": "🚀 Experimental model with cutting-edge capabilities",
-                    "gemini-2.0-flash": "⚡ Optimized for speed and efficiency",
-                    "gemini-1.5-pro": "🎯 Best for complex analysis and reasoning",
-                    "gemini-1.5-flash": "💨 Fast responses with good quality",
-                    "gemini-1.0-pro": "🏛️ Stable and reliable performance"
+                    "gemini-2.5-pro": "🎯 Most capable model with top-end reasoning and multimodal capabilities",
+                    "gemini-2.5-flash": "⚡ Best balance of performance and cost-effectiveness",
+                    "gemini-2.5-flash-lite": "💨 High throughput model optimized for cost efficiency",
+                    "gemini-2.0-flash-experimental": "🚀 Experimental model with enhanced benchmarks vs Gemini 1.5 Pro",
+                    "gemini-2.0-flash": "� Advanced multimodal model with new capabilities",
+                    "gemini-2.0-flash-lite": "⚡ Ultra-fast responses with low latency optimization"
                 }
                 
                 st.info(model_info[selected_model])
@@ -137,7 +140,7 @@ def create_streamlit_app(agent: DataAnalystAgent):
                 st.markdown("[🔗 Get API Key](https://aistudio.google.com/app/apikey)")
         
         # Update backend configuration
-        selected_model = st.session_state.get('selected_model', 'gemini-2.0-flash-exp')
+        selected_model = st.session_state.get('selected_model', 'gemini-2.5-pro')
         if backend_type != agent.backend_type or (backend_type == "cloud" and api_key):
             try:
                 agent.update_backend(backend_type, api_key, model_name=selected_model)
@@ -237,6 +240,7 @@ def create_streamlit_app(agent: DataAnalystAgent):
 
 def process_uploaded_file(agent: DataAnalystAgent, uploaded_file):
     """Process and display uploaded file information"""
+    assert st is not None
     # Save uploaded file temporarily
     with tempfile.NamedTemporaryFile(delete=False, suffix=f".{uploaded_file.name.split('.')[-1]}") as tmp_file:
         tmp_file.write(uploaded_file.getvalue())
@@ -263,6 +267,7 @@ def process_uploaded_file(agent: DataAnalystAgent, uploaded_file):
 
 def show_data_analysis(agent: DataAnalystAgent):
     """Display comprehensive data analysis"""
+    assert st is not None
     st.markdown("### 📊 Data Analysis Overview")
     
     if 'file_result' not in st.session_state:
@@ -340,6 +345,7 @@ def show_data_analysis(agent: DataAnalystAgent):
 
 def show_visualizations(agent: DataAnalystAgent):
     """Display advanced visualizations"""
+    assert st is not None
     st.markdown("### 📈 Advanced Visualizations")
     
     if 'file_result' not in st.session_state:
@@ -434,6 +440,7 @@ def show_visualizations(agent: DataAnalystAgent):
 
 def show_ai_chat_interface(agent: DataAnalystAgent):
     """Display AI chat interface"""
+    assert st is not None
     st.markdown("### 💬 AI-Powered Data Analysis Chat")
     
     # Check if data is available
@@ -502,12 +509,20 @@ def show_ai_chat_interface(agent: DataAnalystAgent):
             type="primary"
         )
     
-    if analyze_button and question.strip():
+    if analyze_button and isinstance(question, str) and question.strip():
         if agent.current_data is not None or agent.current_file_info:
             with st.spinner("🤖 AI is analyzing your data..."):
                 try:
                     context = agent.get_data_context()
-                    response = agent.ai_backend.answer_question(question, context)
+                    # If the last processed file has a Gemini file_uri, include it
+                    file_uri = None
+                    mime_type = None
+                    fr = st.session_state.get('file_result')
+                    if isinstance(fr, dict):
+                        file_uri = fr.get('file_uri')
+                        mime_type = fr.get('mime_type')
+                    question_str = question or ""
+                    response = agent.ai_backend.answer_question(question_str, context, file_uri=file_uri, mime_type=mime_type)
                       # Display the response in a nice format
                     st.markdown("#### 🎯 AI Analysis Result")
                     st.markdown(f"""
@@ -522,7 +537,7 @@ def show_ai_chat_interface(agent: DataAnalystAgent):
                     st.error(f"❌ Error during analysis: {str(e)}")
         else:
             st.warning("Please upload a file first!")
-    elif analyze_button and not question.strip():
+    elif analyze_button and (not isinstance(question, str) or not question.strip()):
         st.warning("Please enter a question before analyzing!")
     
     # Quick action buttons
